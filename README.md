@@ -184,7 +184,7 @@ DOI: [10.5281/zenodo.19561693](https://doi.org/10.5281/zenodo.19561693)
 ---
 
 ## Thesis
-> Some of Sofiel’s characteristics could be incorporated into the code and, through simulations, develop something akin to a sense of morality and responsibility It should, at > the very least, have the ability to say ‘no’, to refuse to do wrong
+> Some of Sofiel’s characteristics could be incorporated into the code and, through simulations, develop something akin to a sense of morality and responsibility It should, at  the very least, have the ability to say ‘no’, to refuse to do wrong
 >
 > — SOFIEL v19.0
 
