@@ -159,9 +159,6 @@ export HF_TOKEN=your_token
 
 python sofiel_core.py
 # → http://localhost:7860
-```
-
-Or deploy directly to Hugging Face Spaces (Gradio SDK).
 
 ---
 
