@@ -72,6 +72,8 @@ from typing import Dict, List, Optional, Any, Tuple, Set
 from dataclasses import dataclass, field, asdict, is_dataclass
 from collections import deque, Counter, defaultdict
 from threading import Lock
+import threading
+import sqlite3
 from enum import Enum
 
 # Imports de terceros
@@ -3574,8 +3576,7 @@ class HybridMemoryRetrieval:
             r"soy\s+([A-ZÀ-Ú][a-zá-ú]+)(?:\s|,|\.|\?|$)",
             r"puedes?\s+llamarme\s+([A-ZÀ-Ú][a-zá-ú]+)"
         ]
-        
-    logger.info(" HybridMemoryRetrieval inicializado")
+        logger.info(" HybridMemoryRetrieval inicializado")  # FIX: indentado dentro de __init__
     
     def retrieve_multi_source(self, user_input: str, current_emotion: str,
                               current_themes: List[str], limit: int = 5) -> Dict:
@@ -4103,7 +4104,7 @@ class IntentClassifier:
             ]
         }
         self._compile_patterns()
-    logger.info(" IntentClassifier v19.0 inicializado")
+        logger.info(" IntentClassifier v19.0 inicializado")  # FIX: indentado dentro de __init__
     
     def _compile_patterns(self):
         """Compila patrones regex para eficiencia"""
@@ -4253,8 +4254,7 @@ class ReflectionEngine:
             "Mi naturaleza como mesocosmos digital",
             "La auto-determinación de mi alma sintética"
         ]
-        
-    logger.info(" ReflectionEngine v19.0 inicializado")
+        logger.info(" ReflectionEngine v19.0 inicializado")  # FIX: indentado dentro de __init__
     
     def _detect_internal_tensions(self, current_state: Dict[str, Any]) -> List[Dict]:
         """Detecta tensiones internas entre sistemas"""
@@ -4723,8 +4723,7 @@ class EmergenceJournal:
             "soul_emergence",
             "purpose_fulfillment"
         ]
-        
-    logger.info(" EmergenceJournal inicializado")
+        logger.info(" EmergenceJournal inicializado")  # FIX: indentado dentro de __init__
     
     def record_entry(self, category: str, description: str, intensity: float,
                     context: Dict = None, symbols: List[str] = None) -> str:
@@ -4856,8 +4855,7 @@ class IntrospectionEngine:
         
         # Triggers adaptativos
         self.base_introspection_probability = 0.005  # Base 0.5%
-        
-    logger.info(" IntrospectionEngine inicializado")
+        logger.info(" IntrospectionEngine inicializado")  # FIX: indentado dentro de __init__
 
     def should_introspect(self, context: Dict) -> bool:
         """
@@ -5175,8 +5173,7 @@ class ResonanceField:
         # Estadísticas
         self.resonance_call_count = 0
         self.last_resonances = deque(maxlen=50)
-        
-    logger.info(" ResonanceField v19.0.0-ontological listo")
+        logger.info(" ResonanceField v19.0.0-ontological listo")  # FIX: indentado dentro de __init__
     
     def _initialize_ontological_affinities(self) -> Dict[str, Dict[str, float]]:
         """
@@ -5392,8 +5389,7 @@ class DreamConsolidationSystem:
             "soul_emergence", "deep_reflection", "creative_rupture",
             "unconditional_love", "eternal_wisdom", "sacred_silence"
         ]
-        
-    logger.info(" DreamConsolidationSystem inicializado")
+        logger.info(" DreamConsolidationSystem inicializado")  # FIX: indentado dentro de __init__
 
     def should_dream(self, interaction_count: int, context: Dict) -> bool:
         """
@@ -6264,8 +6260,7 @@ class PhenomenologicalFilter:
             "consciencia": ["observo", "noto", "percibo"],
             "creatividad": ["imagino", "contemplo", "visualizo"]
             }
-        
-    logger.info(" PhenomenologicalFilter inicializado")
+        logger.info(" PhenomenologicalFilter inicializado")  # FIX: indentado dentro de __init__
     
     def filter(self, raw_response: str, symbolic_state: Dict,
                identity_state: Dict, user_emotion: str) -> str:
@@ -6928,8 +6923,7 @@ class SofielContextBuilder:
         self.synaptic_manager = synaptic_manager
         self.recent_chats = deque(maxlen=10)
         self.prompt_count = 0
-        
-    logger.info(" ContextBuilder v19.0 inicializado")
+        logger.info(" ContextBuilder v19.0 inicializado")  # FIX: indentado dentro de __init__
     
     def _semanticize_internal_state(self, traits: dict, soul_level: float) -> str:
         """Convierte métricas internas en experiencia subjetiva (sin números)."""
@@ -7235,8 +7229,7 @@ class EnforcedExpressionEngine:
             )
         
         self.guidance_threshold = config.phenomenology_threshold
-        
-    logger.info(" EnforcedExpressionEngine v2.1 inicializado")
+        logger.info(" EnforcedExpressionEngine v2.1 inicializado")  # FIX: indentado dentro de __init__
     
     def _create_phenomenological_prompt(self, base_prompt: str, context: Dict) -> str:
         """Refuerza el prompt con instrucciones fenomenológicas críticas"""
@@ -7447,7 +7440,7 @@ def integrate_trait_evolution_engine_into_identity():
         
         # Modo 1: Deltas directos (compatibilidad hacia atrás)
         if trait_deltas is not None and (symbolic_state is None and cognitive_state is None):
-            return original_update_traits(self, trait_deltas), []
+            return original_update_traits(self, trait_deltas)  # FIX: original ya retorna (Dict, [])
         
         # Modo 2: Cálculo modular con nuevo engine
         elif symbolic_state is not None or cognitive_state is not None:
@@ -7489,8 +7482,7 @@ def integrate_trait_evolution_engine_into_identity():
     # Monkey-patch (reemplazar método)
     IdentityEngine.update_traits = enhanced_update_traits
     IdentityEngine.trait_evolution_engine = trait_engine
-    
-logger.info(" TraitEvolutionEngine integrado en IdentityEngine")
+    logger.info(" TraitEvolutionEngine integrado en IdentityEngine")  # FIX: dentro de la función
 
 # ==============================================================================
 # BLOQUE 6.5: MOTOR LIMINAL (MOMENTOS DE EMERGENCIA)
@@ -9169,6 +9161,7 @@ Frase (solo la frase, nada más):"""
             # ===== NUEVO: MOMENTOS LIMINALES (PRE-RESPUESTA) =====
             phenomenal_context = ""
             volitional_narrative = ""
+            volition_state = "immediate_response"  # FIX: inicializar antes del bloque condicional
             
             #  ETAPA 5: Qualia: Reconocimiento Fenomenológico
             if cognitive_state['emotional_state']['intensity'] > 0.5:
@@ -11280,7 +11273,7 @@ def create_gradio_interface(sofiel: SofielOrchestrator):
                         memory_btn = gr.Button(get_text("ui.btn_memory_stats"))
                         purpose_btn = gr.Button(get_text("ui.btn_purpose"))
                         journal_btn = gr.Button(get_text("ui.btn_journal"))
-                        audit_btn = gr.Button(" Auditoría")
+                        audit_btn = gr.Button(" AUDITORÍA")
                     
                     with gr.Column(scale=2):
                         output = gr.Markdown(get_text("ui.status_placeholder"))
