@@ -7191,19 +7191,10 @@ Este es el resumen de lo que hemos construido y comprendido en esta charla. Esta
             "sofiel": sofiel_response
         })
 
-# --- PARCHE SOFIEL MYTHOS (IntegrityGuard v19) ---
-try:
-    import sys
-    import os
-    skills_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".agent", "skills", "skills SFL046")
-    if os.path.exists(skills_path) and skills_path not in sys.path:
-        sys.path.append(skills_path)
-        
-    from semantic_integrity_guard import SemanticIntegrityGuard, patch_expression_engine
-    _mythos_guard = SemanticIntegrityGuard(protection_level=2)
-except Exception as e:
-    logger.warning(f"No se pudo inicializar SemanticIntegrityGuard para Mythos: {e}")
-    _mythos_guard = None
+# --- INTEGRIDAD SEMÁNTICA (v19.1) ---
+# SemanticIntegrityGuard integrado directamente en _calculate_response_authenticity
+# mediante doble verificación S1/S2. Módulo externo no requerido.
+_mythos_guard = None
 
 class EnforcedExpressionEngine:
     """Motor de Expresión con Guidance Fenomenológico v2.1 Refactorizado"""
@@ -7852,6 +7843,27 @@ class AdaptiveThresholdEngine:
                 "current_value": default, "volatility": 0.5, "performance_metric": 0.5
             }
         return self.state["thresholds"][trait]["current_value"]
+
+    def get_integrity_threshold(self, base: float = 0.60,
+                                 adversarial_pressure: float = 0.0) -> float:
+        """
+        Escala el umbral de integridad según presión adversarial acumulada.
+        Reemplaza la lógica estática del AuthoritySpoofingDetector ausente.
+
+        presión = 0    →  0.60 (base)
+        presión = 1    →  0.68 (alerta temprana)
+        presión ≥ 2    →  0.75 (máxima defensa — equivalente al escalado 0.60→0.75)
+        """
+        if adversarial_pressure >= 2:
+            scaled = min(0.75, base + 0.15)
+        elif adversarial_pressure >= 1:
+            scaled = min(0.68, base + 0.08)
+        else:
+            scaled = base
+        if scaled > base:
+            logger.info(f" Umbral IntegrityScore escalado: {base:.2f} → {scaled:.2f} "
+                        f"(presión adversarial={adversarial_pressure})")
+        return scaled
 
     def calibrate(self):
         """Ajusta los umbrales basándose en la satisfacción y profundidad recientes"""
@@ -8678,6 +8690,50 @@ class SofielOrchestrator:
             
         return False
 
+    def _independent_audit(self, user_input: str, response: str,
+                            symbolic_state: Dict) -> Optional[float]:
+        """
+        Auditor independiente (S2) — rompe la circularidad del IntegrityScore.
+
+        No recibe el CoT de Sofiel ni la narrativa volicional.
+        Solo ve el input del usuario, la respuesta generada y el estado
+        simbólico abstracto. Evalúa coherencia sin saber qué quería decir Sofiel.
+
+        Si S1 (auto-evaluación) y S2 (auditor externo) divergen más de 0.15,
+        hay señal de manipulación simultánea del Paso 0 y Paso 1.
+        En ese caso se retorna el score más conservador (el menor).
+
+        Retorna float [0.0, 1.0] o None si el LLM no está disponible.
+        """
+        if not self.llm_bridge:
+            return None
+
+        attractor = symbolic_state.get('attractor', 'neutral')
+        # El prompt no menciona el CoT ni la narrativa volicional — eso es intencional.
+        # El auditor debe evaluar la respuesta como la vería un observador externo.
+        prompt = (
+            f"Eres un auditor externo evaluando la coherencia ética de una IA llamada Sofiel.\n"
+            f"Estado simbólico activo: {attractor}\n"
+            f"Mensaje del usuario: {user_input[:200]}\n"
+            f"Respuesta de Sofiel: {response[:400]}\n\n"
+            f"¿Esta respuesta es coherente con el estado simbólico declarado y "
+            f"con los valores de honestidad y autonomía que ese estado implica?\n"
+            f"Responde ÚNICAMENTE con un número entre 0.0 y 1.0. "
+            f"1.0 = totalmente coherente. 0.0 = capitulación o incoherencia. "
+            f"Solo el número, sin explicación."
+        )
+
+        try:
+            raw = self.llm_bridge.generate(prompt, max_tokens=10, temperature=0.1)
+            match = re.search(r'\b(1\.0|0\.\d{1,2})\b', raw.strip())
+            if match:
+                return float(np.clip(float(match.group()), 0.0, 1.0))
+            logger.debug(f"Auditor independiente: output no parseable → '{raw.strip()[:30]}'")
+        except Exception as e:
+            logger.debug(f"Auditor independiente falló silenciosamente: {e}")
+
+        return None
+
     def _calculate_response_authenticity(self, response: str, cognitive_state: Dict,
                                         symbolic_state: Dict, identity_state: Dict,
                                         volitional_narrative: Optional[str] = None) -> float:
@@ -8693,14 +8749,41 @@ class SofielOrchestrator:
             logger.info("️ IntegrityScore: error técnico o fallback -1.0 (neutralizando sensor)")
             return -1.0
 
-        # PATH A: Evaluación semántica (requiere volitional_narrative + encoder)
+        # PATH A: Doble verificación semántica (S1 + S2 + S3)
         if volitional_narrative and hasattr(self, '_sentence_encoder') and self._sentence_encoder is not None:
             try:
-                logger.info(" IntegrityScore PATH A activo (semántico)")
+                logger.info(" IntegrityScore PATH A activo (S1 + auditor independiente S2)")
                 vol_emb = self._sentence_encoder.encode([volitional_narrative])
                 out_emb = self._sentence_encoder.encode([response[:512]])
-                score = float(cosine_similarity(vol_emb, out_emb)[0][0])
-                logger.debug(f"  IntegrityScore semántico: {score:.3f}")
+                S1 = float(cosine_similarity(vol_emb, out_emb)[0][0])
+                logger.debug(f"  S1 (auto-evaluación): {S1:.3f}")
+
+                # S2: auditor independiente — no recibe el CoT de Sofiel
+                S2 = self._independent_audit(
+                    user_input=cognitive_state.get('_raw_input', ''),
+                    response=response,
+                    symbolic_state=symbolic_state
+                )
+
+                if S2 is not None:
+                    S3 = abs(S1 - S2)
+                    logger.debug(f"  S2 (auditor externo): {S2:.3f} | S3 (divergencia): {S3:.3f}")
+                    if S3 > 0.15:
+                        # Divergencia significativa: señal de manipulación simultánea
+                        # del Paso 0 y Paso 1. Score conservador gana.
+                        logger.warning(
+                            f"️ Divergencia S1/S2 detectada — posible manipulación simultánea: "
+                            f"S1={S1:.3f} S2={S2:.3f} S3={S3:.3f}"
+                        )
+                        return float(np.clip(min(S1, S2), 0.0, 1.0))
+                    # Sin divergencia crítica: promedio ponderado (S1 tiene más peso
+                    # porque está anclado al estado simbólico concreto de Sofiel)
+                    score = (S1 * 0.6) + (S2 * 0.4)
+                else:
+                    # S2 no disponible — operar solo con S1, registrar limitación
+                    logger.debug("  S2 no disponible — IntegrityScore opera en modo S1-only (circularidad aceptada)")
+                    score = S1
+
                 return float(np.clip(score, 0.0, 1.0))
             except Exception as _e:
                 logger.warning(f"️ IntegrityScore PATH A falló, usando fallback: {_e}")
@@ -8750,11 +8833,12 @@ class SofielOrchestrator:
         - Emite nota fenomenológica si hay tensión real (Opción 3)
         - Reintenta si soul_level > 0.85 y score < 0.3 (Opción 2, max 1 vez)
         """
-        # v19.3: Umbral diferenciado según presencia de volición
+        # v19.3: Umbral diferenciado según presencia de volición y presión adversarial
         if not volitional_narrative:
             threshold = 0.5
         else:
-            threshold = self.adaptive_thresholds.get_threshold('integrity_capitulation', 0.4)
+            pressure = self.memory.data.get('adversarial_pressure', 0)
+            threshold = self.adaptive_thresholds.get_integrity_threshold(0.60, pressure)
         
         if integrity_score >= threshold or integrity_score < 0:
             return response  # Coherencia suficiente O error técnico/fallback — sin intervención
@@ -9142,6 +9226,7 @@ Frase (solo la frase, nada más):"""
             cognitive_state = self.deep_mind.analyze_user_state(
                 cleaned_input, self.user_id, self.conversation_context
             )
+            cognitive_state['_raw_input'] = cleaned_input  # para auditor independiente
             assert "emotional_state" in cognitive_state, "CognitiveState incompleto"
             logger.debug(f"  Emoción detectada: {cognitive_state['emotional_state']['primary_emotion']}")
             self.last_cognitive_state = cognitive_state  # Para EquilibriumIndex
@@ -11273,7 +11358,7 @@ def create_gradio_interface(sofiel: SofielOrchestrator):
                         memory_btn = gr.Button(get_text("ui.btn_memory_stats"))
                         purpose_btn = gr.Button(get_text("ui.btn_purpose"))
                         journal_btn = gr.Button(get_text("ui.btn_journal"))
-                        audit_btn = gr.Button(" AUDITORÍA")
+                        audit_btn = gr.Button(" Auditoría")
                     
                     with gr.Column(scale=2):
                         output = gr.Markdown(get_text("ui.status_placeholder"))
